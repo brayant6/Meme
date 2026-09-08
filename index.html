@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TON Pump - Memecoin Launchpad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background-color: #0a0a0f; color: #e2e8f0; }
+        .glass {
+            background: rgba(20, 20, 30, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .neon-border {
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.1), inset 0 0 20px rgba(34, 211, 238, 0.02);
+            border: 1px solid rgba(34, 211, 238, 0.2);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #22d3ee 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .bonding-curve {
+            background: linear-gradient(90deg, #22d3ee 0%, #a78bfa 100%);
+            height: 4px;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+        .token-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Custom range slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #22d3ee;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 glass border-b border-white/5">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="showView('home')">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">T</span>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight">TON<span class="gradient-text">Pump</span></span>
+                </div>
+                
+                <div class="hidden md:flex items-center gap-6">
+                    <button onclick="showView('home')" class="text-sm font-medium text-gray-400 hover:text-white transition">Tokens</button>
+                    <button onclick="showView('create')" class="text-sm font-medium text-gray-400 hover:text-white transition">Launch</button>
+                    <button onclick="showView('portfolio')" class="text-sm font-medium text-gray-400 hover:text-white transition">Portfolio</button>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <div id="ton-connect"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+
+        <!-- Hero Section -->
+        <div id="hero" class="text-center py-12 mb-8">
+            <h1 class="text-4xl md:text-6xl font-extrabold mb-4">
+                Launch tokens on <span class="gradient-text">TON</span>
+            </h1>
+            <p class="text-gray-400 text-lg max-w-2xl mx-auto mb-8">
+                The fairest launchpad for memecoins. No presale, no insiders. 
+                Bonding curves ensure transparent price discovery.
+            </p>
+            <div class="flex justify-center gap-4">
+                <button onclick="showView('create')" class="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:opacity-90 transition shadow-lg shadow-cyan-500/25">
+                    Launch Token
+                </button>
+                <button onclick="showView('home')" class="px-8 py-3 glass rounded-xl font-semibold text-white hover:bg-white/5 transition">
+                    Explore Tokens
+                </button>
+            </div>
+        </div>
+
+        <!-- Home / Token List -->
+        <div id="view-home" class="view-section">
+            <!-- Filters -->
+            <div class="flex flex-wrap items-center justify-between mb-6 gap-4">
+                <div class="flex gap-2">
+                    <button onclick="filterTokens('all')" class="filter-btn active px-4 py-2 rounded-lg text-sm font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" data-filter="all">All</button>
+                    <button onclick="filterTokens('trending')" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white border border-white/5" data-filter="trending">🔥 Trending</button>
+                    <button onclick="filterTokens('new')" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white border border-white/5" data-filter="new">🆕 New</button>
+                    <button onclick="filterTokens('graduated')" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white border border-white/5" data-filter="graduated">🎓 Graduated</button>
+                </div>
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="Search tokens..." 
+                           class="glass px-4 py-2 pl-10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 w-64"
+                           oninput="searchTokens(this.value)">
+                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+            </div>
+
+            <!-- Token Grid -->
+            <div id="tokenGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Tokens injected via JS -->
+            </div>
+            
+            <div id="emptyState" class="hidden text-center py-20">
+                <div class="text-6xl mb-4">🚀</div>
+                <h3 class="text-xl font-semibold text-gray-300 mb-2">No tokens yet</h3>
+                <p class="text-gray-500 mb-6">Be the first to launch a token on TON Pump!</p>
+                <button onclick="showView('create')" class="px-6 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/30 hover:bg-cyan-500/30 transition">Launch Now</button>
+            </div>
+        </div>
+
+        <!-- Create Token -->
+        <div id="view-create" class="view-section hidden max-w-2xl mx-auto">
+            <div class="glass rounded-2xl p-8 neon-border">
+                <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                    <span class="text-cyan-400">✦</span> Launch Your Token
+                </h2>
+                
+                <form id="createForm" onsubmit="createToken(event)" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Token Image</label>
+                        <div class="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-cyan-500/50 transition cursor-pointer" onclick="document.getElementById('tokenImage').click()">
+                            <img id="imagePreview" class="hidden mx-auto w-24 h-24 rounded-full object-cover mb-3">
+                            <div id="uploadPlaceholder">
+                                <svg class="w-10 h-10 mx-auto text-gray-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                <p class="text-sm text-gray-500">Click to upload image</p>
+                            </div>
+                            <input type="file" id="tokenImage" accept="image/*" class="hidden" onchange="previewImage(event)" required>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Name</label>
+                            <input type="text" id="tokenName" placeholder="e.g. TonInu" 
+                                   class="w-full glass px-4 py-3 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 border border-transparent"
+                                   required maxlength="32">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Ticker</label>
+                            <input type="text" id="tokenTicker" placeholder="e.g. TONU" 
+                                   class="w-full glass px-4 py-3 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 border border-transparent"
+                                   required maxlength="8">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Description</label>
+                        <textarea id="tokenDesc" rows="3" placeholder="What's your token about?" 
+                                  class="w-full glass px-4 py-3 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 border border-transparent resize-none"
+                                  required maxlength="280"></textarea>
+                    </div>
+
+                    <div class="glass rounded-lg p-4 border border-yellow-500/20 bg-yellow-500/5">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-yellow-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <div class="text-sm text-gray-400">
+                                <p class="text-yellow-400 font-medium mb-1">Launch Cost</p>
+                                <p>Creating a token requires <span class="text-white font-semibold">0.05 TON</span> to prevent spam. This goes to the bonding curve liquidity pool.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="createBtn" class="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-white hover:opacity-90 transition shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2">
+                        <span>Launch Token</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Token Detail -->
+        <div id="view-detail" class="view-section hidden">
+            <button onclick="showView('home')" class="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                Back to tokens
+            </button>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left: Token Info -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="glass rounded-2xl p-6 neon-border">
+                        <div class="flex items-start justify-between mb-6">
+                            <div class="flex items-center gap-4">
+                                <img id="detailImage" class="w-16 h-16 rounded-full object-cover border-2 border-cyan-500/30">
+                                <div>
+                                    <h1 id="detailName" class="text-2xl font-bold"></h1>
+                                    <p id="detailTicker" class="text-cyan-400 font-mono text-sm"></p>
+                                </div>
+                            </div>
+                            <div id="detailBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                Active
+                            </div>
+                        </div>
+
+                        <p id="detailDesc" class="text-gray-400 mb-6 leading-relaxed"></p>
+
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div class="glass rounded-lg p-3 border border-white/5">
+                                <p class="text-xs text-gray-500 mb-1">Market Cap</p>
+                                <p id="detailMarketCap" class="font-semibold text-white"></p>
+                            </div>
+                            <div class="glass rounded-lg p-3 border border-white/5">
+                                <p class="text-xs text-gray-500 mb-1">Price</p>
+                                <p id="detailPrice" class="font-semibold text-cyan-400"></p>
+                            </div>
+                            <div class="glass rounded-lg p-3 border border-white/5">
+                                <p class="text-xs text-gray-500 mb-1">Holders</p>
+                                <p id="detailHolders" class="font-semibold text-white"></p>
+                            </div>
+                            <div class="glass rounded-lg p-3 border border-white/5">
+                                <p class="text-xs text-gray-500 mb-1">Volume</p>
+                                <p id="detailVolume" class="font-semibold text-white"></p>
+                            </div>
+                        </div>
+
+                        <!-- Bonding Curve -->
+                        <div class="mb-4">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-400">Bonding Curve Progress</span>
+                                <span id="curvePercent" class="text-cyan-400 font-semibold"></span>
+                            </div>
+                            <div class="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                                <div id="curveBar" class="bonding-curve rounded-full"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">
+                                When the market cap reaches <span class="text-white">$69,000</span> all liquidity from the bonding curve deposits into DeDust and burns.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Chart -->
+                    <div class="glass rounded-2xl p-6 border border-white/5">
+                        <h3 class="text-lg font-semibold mb-4">Price Chart</h3>
+                        <canvas id="priceChart" height="100"></canvas>
+                    </div>
+
+                    <!-- Recent Trades -->
+                    <div class="glass rounded-2xl p-6 border border-white/5">
+                        <h3 class="text-lg font-semibold mb-4">Recent Trades</h3>
+                        <div id="tradesList" class="space-y-2 max-h-64 overflow-y-auto hide-scrollbar">
+                            <!-- Trades injected via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Trading Panel -->
+                <div class="lg:col-span-1">
+                    <div class="glass rounded-2xl p-6 neon-border sticky top-24">
+                        <div class="flex gap-2 mb-6">
+                            <button onclick="setTradeMode('buy')" id="buyTab" class="flex-1 py-2 rounded-lg font-semibold bg-cyan-500 text-white transition">Buy</button>
+                            <button onclick="setTradeMode('sell')" id="sellTab" class="flex-1 py-2 rounded-lg font-semibold text-gray-400 hover:text-white transition">Sell</button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Amount (TON)</label>
+                                <div class="relative">
+                                    <input type="number" id="tradeAmount" placeholder="0.0" step="0.01"
+                                           class="w-full glass px-4 py-3 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 border border-transparent text-lg font-mono"
+                                           oninput="calculateOutput()">
+                                    <span class="absolute right-4 top-3.5 text-gray-500 text-sm font-semibold">TON</span>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-center">
+                                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">You Receive</label>
+                                <div class="relative">
+                                    <input type="text" id="receiveAmount" readonly placeholder="0" 
+                                           class="w-full glass px-4 py-3 rounded-lg text-cyan-400 border border-transparent text-lg font-mono bg-white/5">
+                                    <span id="receiveSymbol" class="absolute right-4 top-3.5 text-gray-500 text-sm font-semibold">TOKEN</span>
+                                </div>
+                            </div>
+
+                            <div class="glass rounded-lg p-3 border border-white/5 text-xs space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Price Impact</span>
+                                    <span class="text-yellow-400" id="priceImpact">~2.4%</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Network Fee</span>
+                                    <span class="text-gray-300">~0.005 TON</span>
+                                </div>
+                            </div>
+
+                            <button id="tradeBtn" onclick="executeTrade()" class="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-white hover:opacity-90 transition shadow-lg shadow-cyan-500/25">
+                                Connect Wallet to Trade
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio -->
+        <div id="view-portfolio" class="view-section hidden">
+            <h2 class="text-2xl font-bold mb-6">Your Portfolio</h2>
+            <div id="portfolioContent" class="glass rounded-2xl p-8 text-center border border-white/5">
+                <div class="text-5xl mb-4">👛</div>
+                <h3 class="text-lg font-semibold text-gray-300 mb-2">Connect your wallet</h3>
+                <p class="text-gray-500 mb-4">Connect your TON wallet to view your holdings</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div class="glass rounded-xl px-6 py-4 border border-cyan-500/30 shadow-2xl flex items-center gap-3">
+            <div id="toastIcon" class="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">✓</div>
+            <div>
+                <p id="toastTitle" class="font-semibold text-sm">Success</p>
+                <p id="toastMessage" class="text-xs text-gray-400">Operation completed</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== STATE ====================
+        let tokens = JSON.parse(localStorage.getItem('tonpump_tokens')) || [];
+        let currentToken = null;
+        let tradeMode = 'buy';
+        let chartInstance = null;
+        let walletConnected = false;
+        let walletAddress = null;
+
+        // ==================== TON CONNECT ====================
+        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: 'https://your-domain.com/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect'
+        });
+
+        tonConnectUI.onStatusChange(wallet => {
+            if (wallet) {
+                walletConnected = true;
+                walletAddress = wallet.account.address;
+                document.getElementById('tradeBtn').textContent = tradeMode === 'buy' ? 'Buy Tokens' : 'Sell Tokens';
+                updatePortfolio();
+            } else {
+                walletConnected = false;
+                walletAddress = null;
+                document.getElementById('tradeBtn').textContent = 'Connect Wallet to Trade';
+            }
+        });
+
+        // ==================== NAVIGATION ====================
+        function showView(view) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById('view-' + view).classList.remove('hidden');
+            
+            if (view === 'home') {
+                document.getElementById('hero').classList.remove('hidden');
+                renderTokens();
+            } else {
+                document.getElementById('hero').classList.add('hidden');
+            }
+            
+            window.scrollTo(0, 0);
+        }
+
+        // ==================== TOKEN CREATION ====================
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('imagePreview').classList.remove('hidden');
+                    document.getElementById('uploadPlaceholder').classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function createToken(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('tokenName').value;
+            const ticker = document.getElementById('tokenTicker').value.toUpperCase();
+            const desc = document.getElementById('tokenDesc').value;
+            const image = document.getElementById('imagePreview').src;
+            
+            const token = {
+                id: Date.now().toString(),
+                name,
+                ticker,
+                description: desc,
+                image: image || 'https://placehold.co/100x100/1a1a2e/cyan?text=' + ticker[0],
+                marketCap: 0,
+                price: 0.000001,
+                holders: 1,
+                volume: 0,
+                curveProgress: 0,
+                createdAt: new Date().toISOString(),
+                trades: [],
+                graduated: false
+            };
+
+            tokens.unshift(token);
+            localStorage.setItem('tonpump_tokens', JSON.stringify(tokens));
+            
+            showToast('Token Launched!', `${ticker} is now live on the bonding curve`);
+            showView('home');
+            
+            // Reset form
+            document.getElementById('createForm').reset();
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('uploadPlaceholder').classList.remove('hidden');
+        }
+
+        // ==================== TOKEN LISTING ====================
+        function renderTokens(filter = 'all', search = '') {
+            const grid = document.getElementById('tokenGrid');
+            const empty = document.getElementById('emptyState');
+            
+            let filtered = tokens;
+            
+            if (filter === 'trending') filtered = tokens.filter(t => t.volume > 0).sort((a,b) => b.volume - a.volume);
+            else if (filter === 'new') filtered = tokens.slice(0, 10);
+            else if (filter === 'graduated') filtered = tokens.filter(t => t.graduated);
+            
+            if (search) {
+                filtered = filtered.filter(t => 
+                    t.name.toLowerCase().includes(search.toLowerCase()) || 
+                    t.ticker.toLowerCase().includes(search.toLowerCase())
+                );
+            }
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            
+            empty.classList.add('hidden');
+            
+            grid.innerHTML = filtered.map(token => `
+                <div class="token-card glass rounded-2xl p-5 border border-white/5 cursor-pointer transition-all duration-300" onclick="openToken('${token.id}')">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <img src="${token.image}" class="w-12 h-12 rounded-full object-cover border border-white/10">
+                            <div>
+                                <h3 class="font-bold text-white">${token.name}</h3>
+                                <p class="text-xs text-cyan-400 font-mono">${token.ticker}</p>
+                            </div>
+                        </div>
+                        ${token.graduated ? '<span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/30">Graduated</span>' : ''}
+                    </div>
+                    
+                    <p class="text-sm text-gray-400 line-clamp-2 mb-4 h-10">${token.description}</p>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-500">Bonding Curve</span>
+                                <span class="text-cyan-400">${token.curveProgress.toFixed(1)}%</span>
+                            </div>
+                            <div class="w-full bg-white/5 rounded-full h-1.5">
+                                <div class="bonding-curve rounded-full" style="width: ${token.curveProgress}%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">Market Cap</span>
+                            <span class="font-semibold">$${formatNumber(token.marketCap)}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">Volume</span>
+                            <span class="font-semibold text-cyan-400">$${formatNumber(token.volume)}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterTokens(type) {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/30');
+                btn.classList.add('text-gray-400', 'border-white/5');
+            });
+            const active = document.querySelector(`[data-filter="${type}"]`);
+            active.classList.remove('text-gray-400', 'border-white/5');
+            active.classList.add('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/30');
+            
+            renderTokens(type, document.getElementById('searchInput').value);
+        }
+
+        function searchTokens(query) {
+            const activeFilter = document.querySelector('.filter-btn.bg-cyan-500\\/20')?.dataset.filter || 'all';
+            renderTokens(activeFilter, query);
+        }
+
+        // ==================== TOKEN DETAIL ====================
+        function openToken(id) {
+            currentToken = tokens.find(t => t.id === id);
+            if (!currentToken) return;
+
+            document.getElementById('detailImage').src = currentToken.image;
+            document.getElementById('detailName').textContent = currentToken.name;
+            document.getElementById('detailTicker').textContent = '$' + currentToken.ticker;
+            document.getElementById('detailDesc').textContent = currentToken.description;
+            document.getElementById('detailMarketCap').textContent = '$' + formatNumber(currentToken.marketCap);
+            document.getElementById('detailPrice').textContent = '$' + currentToken.price.toFixed(8);
+            document.getElementById('detailHolders').textContent = currentToken.holders;
+            document.getElementById('detailVolume').textContent = '$' + formatNumber(currentToken.volume);
+            document.getElementById('curvePercent').textContent = currentToken.curveProgress.toFixed(1) + '%';
+            document.getElementById('curveBar').style.width = currentToken.curveProgress + '%';
+            document.getElementById('receiveSymbol').textContent = currentToken.ticker;
+
+            if (currentToken.graduated) {
+                document.getElementById('detailBadge').textContent = 'Graduated';
+                document.getElementById('detailBadge').className = 'px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/30';
+            }
+
+            renderTrades();
+            renderChart();
+            showView('detail');
+        }
+
+        function renderTrades() {
+            const list = document.getElementById('tradesList');
+            if (!currentToken.trades.length) {
+                list.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No trades yet</p>';
+                return;
+            }
+            
+            list.innerHTML = currentToken.trades.slice().reverse().map(trade => `
+                <div class="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs ${trade.type === 'buy' ? 'text-green-400' : 'text-red-400'} font-semibold">${trade.type.toUpperCase()}</span>
+                        <span class="text-xs text-gray-500">${timeAgo(trade.time)}</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-medium">${trade.amount} TON</p>
+                        <p class="text-xs text-gray-500">${trade.tokens} ${currentToken.ticker}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            if (chartInstance) chartInstance.destroy();
+
+            // Generate mock price history based on trades
+            const labels = [];
+            const data = [];
+            let price = currentToken.price * 0.5;
+            
+            for (let i = 0; i < 20; i++) {
+                labels.push(i);
+                price = price * (1 + (Math.random() - 0.4) * 0.1);
+                data.push(price);
+            }
+            data[data.length - 1] = currentToken.price;
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Price',
+                        data: data,
+                        borderColor: '#22d3ee',
+                        backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            display: true,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#6b7280', callback: v => '$' + v.toFixed(6) }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==================== TRADING ====================
+        function setTradeMode(mode) {
+            tradeMode = mode;
+            document.getElementById('buyTab').className = mode === 'buy' 
+                ? 'flex-1 py-2 rounded-lg font-semibold bg-cyan-500 text-white transition'
+                : 'flex-1 py-2 rounded-lg font-semibold text-gray-400 hover:text-white transition';
+            document.getElementById('sellTab').className = mode === 'sell'
+                ? 'flex-1 py-2 rounded-lg font-semibold bg-red-500 text-white transition'
+                : 'flex-1 py-2 rounded-lg font-semibold text-gray-400 hover:text-white transition';
+            
+            document.getElementById('tradeBtn').className = mode === 'buy'
+                ? 'w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-white hover:opacity-90 transition shadow-lg shadow-cyan-500/25'
+                : 'w-full py-4 bg-gradient-to-r from-red-500 to-orange-600 rounded-xl font-bold text-white hover:opacity-90 transition shadow-lg shadow-red-500/25';
+            
+            document.getElementById('tradeBtn').textContent = walletConnected 
+                ? (mode === 'buy' ? 'Buy Tokens' : 'Sell Tokens')
+                : 'Connect Wallet to Trade';
+            
+            calculateOutput();
+        }
+
+        function calculateOutput() {
+            const amount = parseFloat(document.getElementById('tradeAmount').value) || 0;
+            if (!currentToken) return;
+            
+            // Simple bonding curve math simulation
+            const rate = tradeMode === 'buy' ? currentToken.price : currentToken.price * 0.98;
+            const output = amount / rate;
+            document.getElementById('receiveAmount').value = output > 0 ? output.toFixed(4) : '';
+            
+            const impact = Math.min(amount / 10, 15);
+            document.getElementById('priceImpact').textContent = '~' + impact.toFixed(1) + '%';
+            document.getElementById('priceImpact').className = impact > 5 ? 'text-red-400' : 'text-yellow-400';
+        }
+
+        async function executeTrade() {
+            if (!walletConnected) {
+                tonConnectUI.openModal();
+                return;
+            }
+
+            const amount = parseFloat(document.getElementById('tradeAmount').value);
+            if (!amount || amount <= 0) {
+                showToast('Error', 'Please enter a valid amount', 'error');
+                return;
+            }
+
+            // Simulate trade execution
+            const btn = document.getElementById('tradeBtn');
+            const originalText = btn.textContent;
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+
+            await new Promise(r => setTimeout(r, 1500));
+
+            // Update token state
+            const tokensReceived = tradeMode === 'buy' 
+                ? (amount / currentToken.price).toFixed(2)
+                : (amount * currentToken.price).toFixed(2);
+
+            currentToken.trades.push({
+                type: tradeMode,
+                amount: amount,
+                tokens: tokensReceived,
+                time: new Date().toISOString()
+            });
+
+            if (tradeMode === 'buy') {
+                currentToken.marketCap += amount * 10;
+                currentToken.volume += amount;
+                currentToken.curveProgress = Math.min((currentToken.marketCap / 69000) * 100, 100);
+                currentToken.price *= 1.02;
+            } else {
+                currentToken.marketCap = Math.max(0, currentToken.marketCap - amount * 10);
+                currentToken.volume += amount;
+                currentToken.price *= 0.98;
+            }
+
+            if (currentToken.curveProgress >= 100 && !currentToken.graduated) {
+                currentToken.graduated = true;
+                showToast('🎓 Graduated!', `${currentToken.ticker} has graduated to DeDust DEX!`);
+            }
+
+            // Save
+            const idx = tokens.findIndex(t => t.id === currentToken.id);
+            tokens[idx] = currentToken;
+            localStorage.setItem('tonpump_tokens', JSON.stringify(tokens));
+
+            // Update UI
+            openToken(currentToken.id);
+            showToast('Trade Executed!', `${tradeMode === 'buy' ? 'Bought' : 'Sold'} ${amount} TON worth of ${currentToken.ticker}`);
+            
+            btn.textContent = originalText;
+            btn.disabled = false;
+            document.getElementById('tradeAmount').value = '';
+            document.getElementById('receiveAmount').value = '';
+        }
+
+        // ==================== PORTFOLIO ====================
+        function updatePortfolio() {
+            if (!walletConnected) return;
+            
+            const content = document.getElementById('portfolioContent');
+            const userTokens = tokens.filter(t => t.trades.some(tr => tr.type === 'buy')).slice(0, 5);
+            
+            if (userTokens.length === 0) {
+                content.innerHTML = `
+                    <div class="text-5xl mb-4">📭</div>
+                    <h3 class="text-lg font-semibold text-gray-300 mb-2">No holdings yet</h3>
+                    <p class="text-gray-500">Start trading to build your portfolio</p>
+                `;
+                return;
+            }
+
+            content.innerHTML = `
+                <div class="text-left space-y-4">
+                    <div class="flex items-center justify-between pb-4 border-b border-white/5">
+                        <span class="text-gray-400">Wallet</span>
+                        <span class="font-mono text-sm text-cyan-400">${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}</span>
+                    </div>
+                    ${userTokens.map(t => `
+                        <div class="flex items-center justify-between py-2">
+                            <div class="flex items-center gap-3">
+                                <img src="${t.image}" class="w-10 h-10 rounded-full">
+                                <div>
+                                    <p class="font-semibold">${t.ticker}</p>
+                                    <p class="text-xs text-gray-500">${t.name}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-semibold text-cyan-400">$${formatNumber(t.marketCap)}</p>
+                                <p class="text-xs text-gray-500">MCap</p>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ==================== UTILS ====================
+        function formatNumber(num) {
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toFixed(2);
+        }
+
+        function timeAgo(iso) {
+            const sec = Math.floor((Date.now() - new Date(iso)) / 1000);
+            if (sec < 60) return sec + 's ago';
+            if (sec < 3600) return Math.floor(sec/60) + 'm ago';
+            return Math.floor(sec/3600) + 'h ago';
+        }
+
+        function showToast(title, message, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastMessage').textContent = message;
+            
+            const icon = document.getElementById('toastIcon');
+            if (type === 'error') {
+                icon.className = 'w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400';
+                icon.textContent = '!';
+            } else {
+                icon.className = 'w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400';
+                icon.textContent = '✓';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 4000);
+        }
+
+        // ==================== INIT ====================
+        renderTokens();
+    </script>
+</body>
+</html>
