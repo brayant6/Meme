@@ -1,0 +1,14 @@
+{
+  "projects": [
+    {
+      "name": "bonding_curve",
+      "path": "./contracts/bonding_curve.tact",
+      "output": "./build/bonding_curve"
+    },
+    {
+      "name": "jetton_master",
+      "path": "./contracts/jetton_master.tact",
+      "output": "./build/jetton_master"
+    }
+  ]
+}
